@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dibujo Contrarreloj</title>
+    <style>
+        body {
+            margin: 0;
+            background: url('https://i.imgur.com/NKpQeRT.png');
+            background-size: cover;
+            font-family: 'Arial', sans-serif;
+        }
+        .window {
+            background: #e5e5e5;
+            border: 3px solid black;
+            border-radius: 8px;
+            width: 800px;
+            margin: 40px auto;
+            box-shadow: 6px 6px black;
+        }
+        .titlebar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 6px;
+            border-bottom: 2px solid black;
+            background: #d0cfcf;
+            font-weight: bold;
+        }
+        .content {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+        }
+        .left, .right {
+            flex: 1;
+            background: #f7f7f7;
+            border: 2px solid #aaa;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+        #characterImage {
+            width: 200px;
+            height: 200px;
+            object-fit: contain;
+            border-radius: 8px;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+        #drawArea {
+            border: 2px solid black;
+            background: white;
+            cursor: crosshair;
+            border-radius: 6px;
+        }
+        .palette {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .color-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid #333;
+            cursor: pointer;
+        }
+        #timer {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #d9534f;
+            text-align: center;
+        }
+        button {
+            margin-top: 10px;
+            padding: 8px 14px;
+            font-weight: bold;
+            border: 2px solid black;
+            background: #d0cfcf;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #bcbcbc;
+        }
+        .category-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #4a90e2;
+            color: white;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        .loading {
+            color: #999;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="window">
+        <div class="titlebar">🎮 Dibujo Contrarreloj - Pixel Art Edition</div>
+        <div id="timer">1:00</div>
+        <div class="content">
+            <!-- Lado Izquierdo: Personaje -->
+            <div class="left">
+                <img id="characterImage" src="" alt="Personaje">
+                <h2 id="characterName">Cargando...</h2>
+                <div class="category-badge" id="categoryBadge">...</div>
+                <button onclick="newGame()">🔄 Nuevo Personaje</button>
+            </div>
+            
+            <!-- Lado Derecho: Canvas y paleta -->
+            <div class="right">
+                <canvas id="drawArea" width="300" height="300"></canvas>
+                <div class="palette">
+                    <div class="color-btn" style="background:black;" onclick="setColor('black')"></div>
+                    <div class="color-btn" style="background:red;" onclick="setColor('red')"></div>
+                    <div class="color-btn" style="background:blue;" onclick="setColor('blue')"></div>
+                    <div class="color-btn" style="background:green;" onclick="setColor('green')"></div>
+                    <div class="color-btn" style="background:orange;" onclick="setColor('orange')"></div>
+                    <div class="color-btn" style="background:purple;" onclick="setColor('purple')"></div>
+                    <div class="color-btn" style="background:yellow;" onclick="setColor('yellow')"></div>
+                    <div class="color-btn" style="background:pink;" onclick="setColor('pink')"></div>
+                    <button onclick="setEraser()">🧽 Borrador</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Variables ---
+        const canvas = document.getElementById("drawArea");
+        const ctx = canvas.getContext("2d");
+        let drawing = false, color = "black", timeOver = false, countdown;
+
+        // Configuración del pincel
+        ctx.lineWidth = 6;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        // --- Base de datos de personajes con sprites/imágenes ---
+        const characters = {
+            // Mario Bros
+            mario: [
+                { name: "Mario", image: "https://www.mariowiki.com/images/0/02/SMB_Smallmario.png?e39a6" },
+                { name: "Luigi", image: "https://www.mariowiki.com/images/d/de/SMB3_Battle_Luigi_stand.png?fa9c1" },
+                { name: "Yoshi", image: "https://www.mariowiki.com/images/d/dd/YoshiNES-RegYoshi.png?1fff8" },
+                { name: "Bowser", image: "https://www.mariowiki.com/images/9/9e/BowserSMB3.png?a174b" },
+                { name: "BOO", image:  "https://www.mariowiki.com/images/5/55/BigBoo_SMW.png?2a2e8" },
+                { name: "Toad", image: "https://www.mariowiki.com/images/d/d1/SMB2_Toad_Sprite.png?83044" }
+            ],
+            // Zelda
+            zelda: [
+                { name: "Link", image: "https://www.zeldadungeon.net/wiki/images/0/01/CoH_Link_Sprite.png" },
+                { name: "Zelda", image: "https://www.zeldadungeon.net/wiki/images/5/57/Zelda-FSA.png" },
+                { name: "Goron", image: "https://www.zeldadungeon.net/wiki/images/6/69/Goron-TMC-Sprite.png" },
+                { name: "Malon", image: "https://www.zeldadungeon.net/wiki/images/3/30/Malon.png" }
+                
+            ],
+        
+            // // Sonic
+            // sonic: [
+            //     { name: "Sonic", image: "https://static.wikia.nocookie.net/sonic/images/8/8c/SMSonicSprite.png/revision/latest?cb=20170901121520" },
+            //     { name: "Knuckles", image: "https://static.wikia.nocookie.net/sonic/images/5/5a/SMKnucklesSprite.png/revision/latest?cb=20170901123227" },
+            //     { name: "Blaze", image: "https://static.wikia.nocookie.net/sonic/images/6/6e/Blaze_credits.png/revision/latest?cb=20181129003333" }
+            // ],
+
+            // Kirby
+            // kirby: [
+            //     { name: "Kirby", image: "https://kirby.fandom.com/wiki/File:Kirbymassiveattack.png" },
+            //     { name: "Meta Knight", image: "https://static.wikia.nocookie.net/kirby/images/2/2d/SMM_Meta_Knight_sprite.png" }
+            // ],
+            // // Metroid
+            // metroid: [
+            //     { name: "Samus", image: "https://metroid.fandom.com/wiki/Special:Redirect/file/Samus_Aran_Varia_Suit_Super_Metroid_Player.gif" },
+            //     { name: "Samus (No Suit)", image: "https://metroid.fandom.com/wiki/Special:Redirect/file/Samus_Without_Suit.gif" }
+            // ],
+            // // Pac-Man
+            // pacman: [
+            //     { name: "Pac-Man", image: "https://www.pngarts.com/files/3/Pac-Man-PNG-High-Quality-Image.png" },
+            //     { name: "Ms. Pac-Man", image: "https://static.wikia.nocookie.net/pacman/images/c/cf/Ms._Pac-Man_%28Sprite%29.png" }
+            // ],
+            // Donkey Kong
+            // dk: [
+            //     { name: "Donkey Kong", image: "https://www.mariowiki.com/images/8/84/Donkey_Kong_Artwork_%28alt%29_-_Donkey_Kong_Country_Tropical_Freeze.png" },
+            //     { name: "Diddy Kong", image: "https://www.mariowiki.com/images/5/55/Diddy_Kong_Artwork_-_Donkey_Kong_Country_Tropical_Freeze.png" }
+            // ],
+            // // Street Fighter
+            // streetfighter: [
+            //     { name: "Ryu", image: "https://static.wikia.nocookie.net/streetfighter/images/5/55/Ryu-hdstance.gif" },
+            //     { name: "Ken", image: "https://static.wikia.nocookie.net/streetfighter/images/8/8c/Ken-hdstance.gif" },
+            //     { name: "Chun-Li", image: "https://static.wikia.nocookie.net/streetfighter/images/e/e2/Chunli-hdstance.gif" }
+            // ]
+        };
+
+        // --- Cargar personaje aleatorio ---
+        async function loadRandomCharacter() {
+            // Decidir aleatoriamente si es Pokémon o personaje
+            const usePokemon = Math.random() < 0.4; // 40% Pokémon, 60% otros
+            
+            if (usePokemon) {
+                await loadPokemon();
+            } else {
+                loadCharacter();
+            }
+        }
+
+        // --- API Pokémon ---
+        async function loadPokemon() {
+            try {
+                const id = Math.floor(Math.random() * 150) + 1;
+                const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);
+                const data = await res.json();
+                
+                const imgElement = document.getElementById("characterImage");
+                imgElement.src = data.sprites.front_default; // Sprite pixelado clásico
+                imgElement.alt = data.name;
+                
+                document.getElementById("characterName").textContent = data.name.toUpperCase();
+                document.getElementById("categoryBadge").textContent = "⚡ POKÉMON";
+                document.getElementById("categoryBadge").style.background = "#ffcb05";
+                document.getElementById("categoryBadge").style.color = "#3d7dca";
+            } catch (error) {
+                console.error("Error cargando Pokémon:", error);
+                loadCharacter();
+            }
+        }
+
+        // --- Cargar personaje de otras categorías ---
+        function loadCharacter() {
+            // Elegir categoría aleatoria
+            const categories = Object.keys(characters);
+            const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+            
+            // Elegir personaje aleatorio de esa categoría
+            const categoryCharacters = characters[randomCategory];
+            const randomChar = categoryCharacters[Math.floor(Math.random() * categoryCharacters.length)];
+            
+            // Actualizar la interfaz
+            const imgElement = document.getElementById("characterImage");
+            imgElement.src = randomChar.image;
+            imgElement.alt = randomChar.name;
+            
+            // Manejar error de carga
+            imgElement.onerror = function() {
+                this.style.display = 'none';
+                document.getElementById("characterName").innerHTML = 
+                    `${randomChar.name}<br><span class="loading">(imagen no disponible)</span>`;
+            };
+            imgElement.onload = function() {
+                this.style.display = 'block';
+            };
+            
+            document.getElementById("characterName").textContent = randomChar.name;
+            
+            // Actualizar badge según categoría
+            const categoryNames = {
+                mario: "🍄 MARIO BROS",
+                zelda: "🗡️ ZELDA",
+                megaman: "🤖 MEGA MAN",
+                sonic: "💨 SONIC",
+                kirby: "⭐ KIRBY",
+                metroid: "🚀 METROID",
+                pacman: "👾 PAC-MAN",
+                dk: "🍌 DONKEY KONG",
+                streetfighter: "🥋 STREET FIGHTER"
+            };
+            
+            const categoryColors = {
+                mario: "#e52521",
+                zelda: "#00a650",
+                megaman: "#0075d1",
+                sonic: "#0064c8",
+                kirby: "#ff69b4",
+                metroid: "#d4af37",
+                pacman: "#ffff00",
+                dk: "#8b4513",
+                streetfighter: "#ff0000"
+            };
+            
+            document.getElementById("categoryBadge").textContent = categoryNames[randomCategory];
+            document.getElementById("categoryBadge").style.background = categoryColors[randomCategory];
+            document.getElementById("categoryBadge").style.color = "white";
+        }
+
+        // --- Canvas (pincel continuo) ---
+        canvas.addEventListener("mousedown", (e) => {
+            if (!timeOver) {
+                drawing = true;
+                ctx.beginPath();
+                ctx.moveTo(e.offsetX, e.offsetY);
+            }
+        });
+
+        canvas.addEventListener("mouseup", () => {
+            drawing = false;
+            ctx.closePath();
+        });
+
+        canvas.addEventListener("mousemove", (e) => {
+            if (!drawing || timeOver) return;
+            ctx.strokeStyle = color;
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+        });
+
+        function setColor(c) {
+            color = c;
+        }
+
+        function setEraser() {
+            color = "white";
+        }
+
+        // --- Timer ---
+        function startTimer() {
+            clearInterval(countdown);
+            let time = 60;
+            const timerElement = document.getElementById("timer");
+            timeOver = false;
+
+            countdown = setInterval(() => {
+                let minutes = Math.floor(time / 60);
+                let seconds = time % 60;
+                timerElement.textContent = `${minutes}:${seconds < 10 ? "0"+seconds : seconds}`;
+                
+                if (time <= 0) {
+                    clearInterval(countdown);
+                    timerElement.textContent = "⏰ Tiempo agotado!";
+                    timeOver = true;
+                }
+                time--;
+            }, 1000);
+        }
+
+        // --- Nuevo Juego ---
+        function newGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            loadRandomCharacter();
+            startTimer();
+        }
+
+        // Inicial
+        newGame();
+    </script>
+</body>
+</html>
